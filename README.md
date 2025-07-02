@@ -43,7 +43,7 @@ Follow these steps to deploy your DVWA security lab on AWS:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/](https://github.com/)[your-github-username]/aws-dvwa-terraform-lab.git
+    git clone https://github.com/devsharma-soc/aws-dvwa-terraform-lab.git
     cd aws-dvwa-terraform-lab
     ```
 
@@ -120,10 +120,9 @@ Consider these improvements for further learning and a more robust setup:
 
 ## Author
 
-**[Your Full Name]**
-* [Your LinkedIn Profile URL]
-* [Your GitHub Profile URL (already linked above, but good to reiterate)]
-* [Your Personal Portfolio/Blog URL (Optional)]
+**Dev Sharma**
+* [\[LinkedIn Profile\]](https://www.linkedin.com/in/devsharma-soc/)
+* [\[GitHub Profile\]](https://github.com/devsharma-soc)
 
 ## License
 
