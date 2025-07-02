@@ -121,8 +121,8 @@ Consider these improvements for further learning and a more robust setup:
 ## Author
 
 **Dev Sharma**
-* [\[LinkedIn Profile\]](https://www.linkedin.com/in/devsharma-soc/)
-* [\[GitHub Profile\]](https://github.com/devsharma-soc)
+* \[LinkedIn Profile\](https://www.linkedin.com/in/devsharma-soc/)
+* \[GitHub Profile\](https://github.com/devsharma-soc)
 
 ## License
 
