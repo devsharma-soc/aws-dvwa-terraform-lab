@@ -1,11 +1,17 @@
+#
 # main.tf
+#
+# This file defines the core infrastructure for the DVWA Security Lab on AWS.
+#
 
+# Terraform and Provider Configuration
+# ------------------------------------
 terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      # Change this line:
-      version = "~> 6.0" # This means any version >= 6.0.0 and < 7.0.0
+      # Using a compatible version of the AWS provider
+      version = "~> 6.0"
     }
     http = {
       source  = "hashicorp/http"
@@ -14,55 +20,88 @@ terraform {
   }
 }
 
-# Configure the AWS provider
 provider "aws" {
+  # The AWS region is defined in the variables.tf file
   region = var.aws_region
 }
 
-# Data source to get the default VPC ID
-data "aws_vpc" "default" {
-  default = true
+# -----------------------------------------------------------------
+# 1. VPC, Subnet, and Network Resources
+#    This section creates a new, dedicated VPC for the project.
+#    It replaces the dependency on a pre-existing default VPC.
+# -----------------------------------------------------------------
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+  tags = {
+    Name = "dvwa-vpc-${var.env_suffix}"
+  }
 }
 
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "dvwa-igw-${var.env_suffix}"
+  }
+}
+
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true # Required for a public-facing EC2 instance
+  tags = {
+    Name = "dvwa-public-subnet-${var.env_suffix}"
+  }
+}
+
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+}
+
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
+}
+
+# -----------------------------------------------------------------
+# 2. Security Group
+#    Defines firewall rules for the EC2 instance.
+# -----------------------------------------------------------------
 # Data source to get your current public IP for SSH access
 data "http" "my_ip" {
   url = "http://ipv4.icanhazip.com"
 }
 
-# Define the Security Group for DVWA
 resource "aws_security_group" "dvwa_sg" {
   name        = "dvwa-lab-security-group-${var.env_suffix}"
   description = "Security group for DVWA lab, allowing SSH, HTTP, HTTPS"
-  vpc_id      = data.aws_vpc.default.id # Use the default VPC
+  # Associate this security group with the new VPC we created above
+  vpc_id      = aws_vpc.main.id
 
   # Inbound Rules (Ingress)
+  # Allow SSH from your current public IP only
   ingress {
-    from_port = 22
-    to_port   = 22
-    protocol  = "tcp"
-    # WARNING: This will get your current public IP. If your IP changes, you'll need to re-run 'terraform apply'
-    cidr_blocks = ["${chomp(data.http.my_ip.body)}/32"] # Allow SSH from your current public IP
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    # --- CHANGE: Using response_body instead of the deprecated body ---
+    cidr_blocks = ["${chomp(data.http.my_ip.response_body)}/32"]
     description = "Allow SSH from my IP"
   }
 
+  # Allow HTTP access to the DVWA application from anywhere
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Allow HTTP from anywhere (for DVWA)
+    cidr_blocks = ["0.0.0.0/0"]
     description = "Allow HTTP access to DVWA"
   }
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Allow HTTPS from anywhere (good practice)
-    description = "Allow HTTPS access"
-  }
-
   # Outbound Rules (Egress)
-  # Allow all outbound traffic (needed for updates, git clone etc.)
   egress {
     from_port   = 0
     to_port     = 0
@@ -76,15 +115,21 @@ resource "aws_security_group" "dvwa_sg" {
   }
 }
 
-# Define the EC2 instance for DVWA
+# -----------------------------------------------------------------
+# 3. EC2 Instance
+#    Defines the compute resource for the DVWA application.
+# -----------------------------------------------------------------
 resource "aws_instance" "dvwa_server" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  key_name               = var.key_pair_name
-  vpc_security_group_ids = [aws_security_group.dvwa_sg.id] # Associate the security group
+  ami               = var.ami_id
+  instance_type     = var.instance_type
+  key_name          = var.key_pair_name
+  # Assign the instance to our new public subnet
+  subnet_id = aws_subnet.main.id
+  # Associate the security group with our new instance
+  vpc_security_group_ids = [aws_security_group.dvwa_sg.id]
 
-  # User data script to configure DVWA (as discussed previously)
-  user_data = filebase64("scripts/user_data.sh") # Reads the script from a file and base64 encodes it
+  # --- CHANGE: Using user_data_base64 to match the output of filebase64 ---
+  user_data_base64 = filebase64("scripts/user_data.sh")
 
   tags = {
     Name    = "DVWA-Instance-${var.env_suffix}"
